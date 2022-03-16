@@ -35,13 +35,14 @@ int dev = I2C_DEV(0);
 
 int8_t user_i2c_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t len)
 {
-    printf("user_i2c_read(%d, %d, %x, data, len)\n", dev, dev_addr, reg_addr);
+    printf("i2c_read_regs(%d, %x, %x, ...)\n", dev, dev_addr, reg_addr);
     return i2c_read_regs(dev, dev_addr, reg_addr, data, len, 0);
 }
 
 int8_t user_i2c_write(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t len)
 {
-    return i2c_read_regs(dev, dev_addr, reg_addr, data, len, 0);
+    printf("i2c_write_regs(%d, %x, %x, ...)\n", dev, dev_addr, reg_addr);
+    return i2c_write_regs(dev, dev_addr, reg_addr, data, len, 0);
 }
 
 void user_delay(uint32_t period)
@@ -49,6 +50,10 @@ void user_delay(uint32_t period)
     ztimer_sleep(ZTIMER_MSEC, period);
 }
 
+/* accel conversion */
+#define AC 2048.0
+/* gyro conversion */
+#define GC 16.4
 
 int main(void)
 {
@@ -76,10 +81,6 @@ int main(void)
         printf("Error initializing BMI160 - %d\n", rslt);
         return 1;
     }
-    puts("Will start shell");
-    char line_buf[SHELL_DEFAULT_BUFSIZE];
-    shell_run(NULL, line_buf, SHELL_DEFAULT_BUFSIZE);
-    return 0;
 
     /* Select the Output data rate, range of accelerometer sensor */
     bmi.accel_cfg.odr = BMI160_ACCEL_ODR_1600HZ;
@@ -99,6 +100,10 @@ int main(void)
 
     /* Set the sensor configuration */
     rslt = bmi160_set_sens_conf(&bmi);
+    if (rslt != BMI160_OK) {
+        printf("Error configuring BMI160 - %d\n", rslt);
+        return 1;
+    }
 
     /* Link the FIFO memory location */
     fifo_frame.data = fifo_buff;
@@ -106,13 +111,21 @@ int main(void)
     bmi.fifo = &fifo_frame;
     /* Clear all existing FIFO configurations */
     rslt = bmi160_set_fifo_config(BMI160_FIFO_CONFIG_1_MASK , BMI160_DISABLE, &bmi);
+    if (rslt != BMI160_OK) {
+        printf("Error clearing fifo - %d\n", rslt);
+        return 1;
+    }
 
     uint8_t fifo_config = BMI160_FIFO_HEADER |  BMI160_FIFO_ACCEL | BMI160_FIFO_GYRO;
     rslt = bmi160_set_fifo_config(fifo_config, BMI160_ENABLE, &bmi);
+    if (rslt != BMI160_OK) {
+        printf("Error enabling fifo - %d\n", rslt);
+        return 1;
+    }
     /* Check rslt for any error codes */
     i2c_release(dev);
 
-    while(rslt != 0) {
+    while(rslt == 0) {
         i2c_acquire(dev);
         /* Wait for 100ms for the FIFO to fill */
         user_delay(100);
@@ -122,16 +135,36 @@ int main(void)
          * number of bytes read from the FIFO */
         bmi.fifo->length = FIFO_SIZE;
         rslt = bmi160_get_fifo_data(&bmi);
+        if (rslt != BMI160_OK) {
+            printf("Error getting fifo data - %d\n", rslt);
+            return 1;
+        }
         /* Check rslt for any error codes */
 
         uint8_t gyr_inst = GYR_FRAMES, acc_inst = ACC_FRAMES;
         rslt = bmi160_extract_gyro(gyro_data, &gyr_inst, &bmi);
+        if (rslt != BMI160_OK) {
+            printf("Error extracting gyro data - %d\n", rslt);
+            return 1;
+        }
         for (size_t i = 0; i < gyr_inst; i++)
-            printf("Read gyro time+xyz: %"PRIu32" %d %d %d\n", gyro_data[i].sensortime, gyro_data[i].x, gyro_data[i].y, gyro_data[i].z);
+            printf("Read gyro time+xyz: %"PRIu32" %.2f %.2f %.2f\n",
+                gyro_data[i].sensortime,
+                gyro_data[i].x / GC,
+                gyro_data[i].y / GC,
+                gyro_data[i].z / GC);
 
         rslt = bmi160_extract_accel(accel_data, &acc_inst, &bmi);
-        for (size_t i = 0; i < gyr_inst; i++)
-            printf("Read accel time+xyz: %"PRIu32" %d %d %d\n", accel_data[i].sensortime, accel_data[i].x, accel_data[i].y, accel_data[i].z);
+        if (rslt != BMI160_OK) {
+            printf("Error extracting accel data - %d\n", rslt);
+            return 1;
+        }
+        for (size_t i = 0; i < acc_inst; i++)
+            printf("Read accel time+xyz: %"PRIu32" %.2f %.2f %.2f\n",
+            accel_data[i].sensortime,
+            accel_data[i].x / AC,
+            accel_data[i].y / AC,
+            accel_data[i].z / AC);
         i2c_release(dev);
     }
 
