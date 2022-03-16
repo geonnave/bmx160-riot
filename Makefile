@@ -12,6 +12,7 @@ RIOTBASE ?= $(CURDIR)/../RIOT-pulga/
 
 ifeq (pulga,$(BOARD))
 FEATURES_REQUIRED += periph_i2c
+# USEMODULE += i2c
 endif
 
 # Modules to include:
@@ -19,6 +20,8 @@ USEMODULE += shell
 USEMODULE += shell_commands
 USEMODULE += ps
 USEMODULE += printf_float
+USEMODULE += ztimer
+USEMODULE += ztimer_msec
 
 # Comment this out to disable code in RIOT that does safety checking
 # which is not needed in a production environment but helps in the
