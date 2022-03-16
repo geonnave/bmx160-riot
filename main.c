@@ -5,6 +5,8 @@
 #include "shell.h"
 #include "shell_commands.h"
 
+#include "bmi160.h"
+
 int main(void)
 {
     (void) puts("Welcome to RIOT!");
