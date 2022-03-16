@@ -38,6 +38,9 @@
 
 #include "bmi160.h"
 
+#define ENABLE_DEBUG 1
+#include "debug.h"
+
 /* Below look up table follows the enum bmi160_int_types.
  * Hence any change should match to the enum bmi160_int_types
  */

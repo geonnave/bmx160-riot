@@ -35,6 +35,7 @@ int dev = I2C_DEV(0);
 
 int8_t user_i2c_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t len)
 {
+    printf("user_i2c_read(%d, %d, %x, data, len)\n", dev, dev_addr, reg_addr);
     return i2c_read_regs(dev, dev_addr, reg_addr, data, len, 0);
 }
 
@@ -68,14 +69,21 @@ int main(void)
     rslt = bmi160_init(&bmi);
     if (rslt == BMI160_OK) {
         printf("Success initializing BMI160 - Chip ID 0x%X\n", bmi.chip_id);
+    } else if (rslt == BMI160_E_DEV_NOT_FOUND) {
+        printf("Error initializing BMI160: device not found\n");
+        return 1;
     } else {
-        printf("Error initializing BMI160");
+        printf("Error initializing BMI160 - %d\n", rslt);
         return 1;
     }
+    puts("Will start shell");
+    char line_buf[SHELL_DEFAULT_BUFSIZE];
+    shell_run(NULL, line_buf, SHELL_DEFAULT_BUFSIZE);
+    return 0;
 
     /* Select the Output data rate, range of accelerometer sensor */
     bmi.accel_cfg.odr = BMI160_ACCEL_ODR_1600HZ;
-    bmi.accel_cfg.range = BMI160_ACCEL_RANGE_16G;
+    bmi.accel_cfg.range = BMI160_ACCEL_RANGE_16G; // use for conversion: 2048
     bmi.accel_cfg.bw = BMI160_ACCEL_BW_NORMAL_AVG4;
 
     /* Select the power mode of accelerometer sensor */
@@ -83,7 +91,7 @@ int main(void)
 
     /* Select the Output data rate, range of Gyroscope sensor */
     bmi.gyro_cfg.odr = BMI160_GYRO_ODR_3200HZ;
-    bmi.gyro_cfg.range = BMI160_GYRO_RANGE_2000_DPS;
+    bmi.gyro_cfg.range = BMI160_GYRO_RANGE_2000_DPS; // use for conversion: 16.4
     bmi.gyro_cfg.bw = BMI160_GYRO_BW_NORMAL_MODE;
 
     /* Select the power mode of Gyroscope sensor */
@@ -102,8 +110,10 @@ int main(void)
     uint8_t fifo_config = BMI160_FIFO_HEADER |  BMI160_FIFO_ACCEL | BMI160_FIFO_GYRO;
     rslt = bmi160_set_fifo_config(fifo_config, BMI160_ENABLE, &bmi);
     /* Check rslt for any error codes */
+    i2c_release(dev);
 
     while(rslt != 0) {
+        i2c_acquire(dev);
         /* Wait for 100ms for the FIFO to fill */
         user_delay(100);
 
@@ -117,11 +127,12 @@ int main(void)
         uint8_t gyr_inst = GYR_FRAMES, acc_inst = ACC_FRAMES;
         rslt = bmi160_extract_gyro(gyro_data, &gyr_inst, &bmi);
         for (size_t i = 0; i < gyr_inst; i++)
-            printf("Read gyro xyz: %d %d %d\n", gyro_data[i].x, gyro_data[i].y, gyro_data[i].z);
+            printf("Read gyro time+xyz: %"PRIu32" %d %d %d\n", gyro_data[i].sensortime, gyro_data[i].x, gyro_data[i].y, gyro_data[i].z);
 
         rslt = bmi160_extract_accel(accel_data, &acc_inst, &bmi);
         for (size_t i = 0; i < gyr_inst; i++)
-            printf("Read accel xyz: %d %d %d\n", accel_data[i].x, accel_data[i].y, accel_data[i].z);
+            printf("Read accel time+xyz: %"PRIu32" %d %d %d\n", accel_data[i].sensortime, accel_data[i].x, accel_data[i].y, accel_data[i].z);
+        i2c_release(dev);
     }
 
     // never reached, for now...
