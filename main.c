@@ -3,7 +3,6 @@
 
 #include "thread.h"
 #include "shell.h"
-#include "shell_commands.h"
 #include "ztimer.h"
 
 #include "bmi160.h"

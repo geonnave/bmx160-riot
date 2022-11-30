@@ -17,7 +17,7 @@ endif
 
 # Modules to include:
 USEMODULE += shell
-USEMODULE += shell_commands
+USEMODULE += shell_cmds
 USEMODULE += ps
 USEMODULE += printf_float
 USEMODULE += ztimer
